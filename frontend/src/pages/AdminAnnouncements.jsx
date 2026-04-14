@@ -48,20 +48,6 @@ export default function AdminAnnouncements() {
     fetchAnnouncements(1);
   }, []);
 
-  const showMessage = (type, text) => {
-    setMessage({ type, text });
-    setTimeout(() => setMessage({ type: '', text: '' }), 3000);
-  };
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    fetchAnnouncements(1);
-  };
-
-  const handlePageChange = (newPage) => {
-    fetchAnnouncements(newPage);
-  };
-
   const openCreateForm = () => {
     setForm({ title: '', content: '', isPinned: false, expiryDate: '' });
     setEditingId(null);

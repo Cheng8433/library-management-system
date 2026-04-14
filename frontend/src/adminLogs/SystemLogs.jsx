@@ -8,7 +8,7 @@ function SystemLogs() {
   useEffect(() => {
     const fetchLogs = async () => {
       try {
-        const response = await fetch('http://localhost:3001/logs')
+        const response = await fetch('/logs')
         if (!response.ok) {
           throw new Error('Failed to fetch logs')
         }

@@ -15,9 +15,8 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/api/readers', readersRouter);
-app.use('/api/auth', readersRouter);
-app.use('/api/librarian/auth', authRouter);      // 你的代码
-app.use('/api/loans', loansRouter);              // 上游代码
+app.use('/api/auth', authRouter);
+app.use('/api/loans', loansRouter);
 
 app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' });

@@ -33,16 +33,38 @@ async function requireAuth(req, res, next) {
       return res.status(401).json({ message: 'Token payload is invalid.' });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    let user = null;
+    let userType = null;
+
+    if (payload.role === 'LIBRARIAN') {
+      user = await prisma.librarian.findUnique({
+        where: { id: userId },
+      });
+      if (user) {
+        userType = 'librarian';
+      }
+    }
+
+    if (!user) {
+      user = await prisma.user.findUnique({
+        where: { id: userId },
+      });
+      if (user) {
+        userType = 'user';
+      }
+    }
 
     if (!user) {
       return res.status(401).json({ message: 'User no longer exists.' });
     }
 
     req.auth = payload;
-    req.user = toPublicUser(user);
+    req.user = {
+      ...payload,
+      id: user.id,
+      name: user.name,
+      role: payload.role || (userType === 'librarian' ? 'LIBRARIAN' : user.role),
+    };
     next();
   } catch (error) {
     return res.status(401).json({

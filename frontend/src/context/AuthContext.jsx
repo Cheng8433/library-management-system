@@ -37,7 +37,7 @@ export function AuthProvider({ children }) {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
+        throw new Error(data.message || data.error || 'Login failed');
       }
 
       localStorage.setItem('token', data.token);
@@ -45,7 +45,7 @@ export function AuthProvider({ children }) {
       setToken(data.token);
       setUser(data.user);
 
-      return { success: true };
+      return { success: true, user: data.user };
     } catch (error) {
       return { success: false, error: error.message };
     } finally {
