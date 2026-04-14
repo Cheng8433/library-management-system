@@ -216,4 +216,56 @@ router.post('/lend', requireAuth, async (req, res, next) => {
   }
 });
 
+
+
+
+
+// 4. 获取当前登录用户的个人借阅历史
+router.get('/my-history', requireAuth, async (req, res, next) => {
+  try {
+    // 从 requireAuth 中间件获取当前用户的 ID
+    const userId = req.user.id;
+
+    const history = await prisma.loan.findMany({
+      where: {
+        userId: userId,
+      },
+      include: {
+        book: {
+          select: {
+            title: true,
+            author: true,
+            isbn: true,
+            genre: true,
+          },
+        },
+      },
+      orderBy: {
+        checkoutDate: 'desc', // 按借出时间降序排列
+      },
+    });
+
+    // 处理一下数据，增加一个状态字段方便前端显示
+    const processedHistory = history.map(loan => {
+      let status = 'ON_LOAN'; // 借阅中
+      if (loan.returnDate) {
+        status = 'RETURNED'; // 已归还
+      } else if (new Date(loan.dueDate) < new Date()) {
+        status = 'OVERDUE'; // 已逾期
+      }
+
+      return {
+        ...loan,
+        status
+      };
+    });
+
+    res.json(processedHistory);
+  } catch (error) {
+    next(error);
+  }
+});
+
+
+
 module.exports = router;
