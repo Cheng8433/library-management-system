@@ -11,6 +11,7 @@ async function main() {
   await prisma.loan.deleteMany();
   await prisma.book.deleteMany();
   await prisma.user.deleteMany();
+  await prisma.librarian.deleteMany();
   await prisma.config.deleteMany();
 
   // 创建用户
@@ -33,6 +34,22 @@ async function main() {
       email: 'librarian@library.com',
       passwordHash: librarianPassword,
       role: 'LIBRARIAN',
+    },
+  });
+
+  await prisma.librarian.create({
+    data: {
+      employeeId: 'lib001',
+      name: '馆员张三',
+      password: librarianPassword,
+    },
+  });
+
+  await prisma.librarian.create({
+    data: {
+      employeeId: 'lib002',
+      name: '馆员李四',
+      password: librarianPassword,
     },
   });
 

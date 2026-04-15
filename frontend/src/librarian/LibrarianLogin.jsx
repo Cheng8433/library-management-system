@@ -1,24 +1,18 @@
-import { useState, useEffect } from 'react'
-
-const API_URL = 'http://localhost:3001/api'
+import { useState } from 'react'
+import { LIBRARIAN_API_URL } from './api'
 
 export default function LibrarianLogin({ onLogin, onSwitchToRegister }) {
-  const [employeeId, setEmployeeId] = useState('')
+  const [employeeId, setEmployeeId] = useState(
+    () => localStorage.getItem('savedEmployeeId') || ''
+  )
   const [password, setPassword] = useState('')
-  const [rememberMe, setRememberMe] = useState(false)
+  const [rememberMe, setRememberMe] = useState(
+    () => Boolean(localStorage.getItem('savedEmployeeId'))
+  )
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [fieldErrors, setFieldErrors] = useState({})
-
-  // 加载保存的工号
-  useEffect(() => {
-    const savedId = localStorage.getItem('savedEmployeeId')
-    if (savedId) {
-      setEmployeeId(savedId)
-      setRememberMe(true)
-    }
-  }, [])
 
   // 实时验证工号
   const validateEmployeeId = (value) => {
@@ -67,10 +61,15 @@ export default function LibrarianLogin({ onLogin, onSwitchToRegister }) {
     setLoading(true)
 
     try {
-      const res = await fetch('http://localhost:3001/api/auth/login', {
+      const res = await fetch(`${LIBRARIAN_API_URL}/librarian/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: employeeId, password, type: 'librarian' })
+        body: JSON.stringify({
+          email: employeeId,
+          employeeId,
+          password,
+          type: 'librarian',
+        })
       })
 
       const data = await res.json()
@@ -89,7 +88,7 @@ export default function LibrarianLogin({ onLogin, onSwitchToRegister }) {
       }
 
       onLogin(data.librarian, data.token)
-    } catch (err) {
+    } catch {
       setError('网络错误，请确保后端已启动')
       setLoading(false)
     }

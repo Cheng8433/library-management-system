@@ -1,6 +1,5 @@
 import { useState } from 'react'
-
-const API_URL = 'http://localhost:3001/api'
+import { LIBRARIAN_API_URL } from './api'
 
 export default function LibrarianRegister({ onRegister, onSwitchToLogin }) {
   const [employeeId, setEmployeeId] = useState('')
@@ -80,7 +79,7 @@ export default function LibrarianRegister({ onRegister, onSwitchToLogin }) {
     setLoading(true)
 
     try {
-      const res = await fetch(`${API_URL}/librarian/auth/register`, {
+      const res = await fetch(`${LIBRARIAN_API_URL}/librarian/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ employeeId, name, password })
@@ -100,7 +99,7 @@ export default function LibrarianRegister({ onRegister, onSwitchToLogin }) {
           onRegister()
         }
       }, 2000)
-    } catch (err) {
+    } catch {
       setError('网络错误，请确保后端已启动')
       setLoading(false)
     }
