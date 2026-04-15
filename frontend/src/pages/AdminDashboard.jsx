@@ -9,6 +9,11 @@ function AdminDashboard() {
       <p style={{ marginBottom: '30px', color: '#666' }}>欢迎，{adminUser.name || adminUser.email}</p>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
+        <a href="/admin-manage-user" style={{ display: 'block', padding: '30px', background: '#8b5cf6', color: 'white', borderRadius: '8px', textDecoration: 'none', textAlign: 'center' }}>
+          <h3 style={{ margin: 0, fontSize: '20px' }}>用户管理</h3>
+          <p style={{ margin: '10px 0 0', opacity: 0.9 }}>增删改查用户信息</p>
+        </a>
+
         <a href="/admin-logs" style={{ display: 'block', padding: '30px', background: '#3b82f6', color: 'white', borderRadius: '8px', textDecoration: 'none', textAlign: 'center' }}>
           <h3 style={{ margin: 0, fontSize: '20px' }}>系统日志</h3>
           <p style={{ margin: '10px 0 0', opacity: 0.9 }}>查看系统操作日志</p>

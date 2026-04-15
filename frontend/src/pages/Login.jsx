@@ -47,6 +47,10 @@ function Login({ onLogin }) {
         </button>
       </form>
       <div style={{ textAlign: 'center', marginTop: 15 }}>
+        <button onClick={() => window.location.href = '/admin-login'} style={{ marginRight: 10, padding: '8px 16px', cursor: 'pointer' }}>Admin Login</button>
+        <button onClick={() => window.location.href = '/librarian-login'} style={{ padding: '8px 16px', cursor: 'pointer' }}>Librarian Login</button>
+      </div>
+      <div style={{ textAlign: 'center', marginTop: 15 }}>
         <a href="/register" style={{ color: '#007bff' }}>No account? Register</a>
       </div>
     </div>

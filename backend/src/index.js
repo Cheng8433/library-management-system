@@ -12,6 +12,7 @@ const authRouter = require('./routes/auth');   // 鉴权路由
 const readersRouter = require('./routes/readers');
 const readerBorrowRouter = require('./routes/reader-borrow');
 const announcementsRouter = require('./routes/announcements');
+const usersRouter = require('./routes/users');
 
 const app = express();
 const port = Number(process.env.PORT) || 3001;
@@ -35,6 +36,7 @@ app.use('/api/announcements', announcementsRouter);
 app.use('/readers', readersRouter);
 app.use('/loans', loansRouter);
 app.use('/api/reader', readerBorrowRouter);
+app.use('/api/users', usersRouter);
 
 // 兼容旧路径（保留队友的设置）
 app.use('/books', booksRouter);

@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminManageUser from './pages/AdminManageUser';
 import SystemLogs from './adminLogs/SystemLogs';
 import LibrarianApp from './librarian/LibrarianApp';
 import Announcements from './pages/Announcements';
@@ -44,6 +45,7 @@ function App() {
       <Route path="/librarian-login" element={<LibrarianApp />} />
       <Route path="/admin-login" element={<AdminLogin />} />
       <Route path="/admin-dashboard" element={<AdminDashboard />} />
+      <Route path="/admin-manage-user" element={<AdminManageUser />} />
       <Route path="/admin-logs" element={<SystemLogs />} />
       <Route path="/announcements" element={<Announcements />} />
       <Route path="/admin/announcements" element={<AdminAnnouncements />} />
