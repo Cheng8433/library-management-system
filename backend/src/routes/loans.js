@@ -336,5 +336,88 @@ router.post('/', requireAuth, async (req, res, next) => {
   }
 });
 
+// 还书功能
+router.post('/return', requireAuth, async (req, res, next) => {
+  try {
+    const { loanId } = req.body;
+    
+    if (!loanId) {
+      return res.status(400).json({ message: '请提供借阅记录ID (loanId)' });
+    }
+
+    // 1. 查找借阅记录
+    const loan = await prisma.loan.findUnique({
+      where: { id: parseInt(loanId) },
+      include: { book: true, user: true }
+    });
+
+    if (!loan) {
+      return res.status(404).json({ message: '借阅记录不存在' });
+    }
+
+    // 2. 检查是否已经还过
+    if (loan.returnDate !== null) {
+      return res.status(400).json({ message: '这本书已经还过了' });
+    }
+
+    // 3. 计算是否逾期及罚款
+    const today = new Date();
+    const dueDate = new Date(loan.dueDate);
+    let fineAmount = 0;
+    
+    if (today > dueDate) {
+      // 计算逾期天数
+      const daysOverdue = Math.ceil((today - dueDate) / (1000 * 60 * 60 * 24));
+      // 假设每天罚款 0.5 元（可以根据需要调整）
+      const DAILY_FINE = 0.5;
+      fineAmount = daysOverdue * DAILY_FINE;
+    }
+
+    // 4. 更新借阅记录（设置还书日期和罚款金额）
+    const updatedLoan = await prisma.loan.update({
+      where: { id: parseInt(loanId) },
+      data: {
+        returnDate: today,
+        fineAmount: fineAmount,
+        finePaid: false,  // 未支付，需要用户支付
+      }
+    });
+
+    // 5. 增加图书的可借数量
+    await prisma.book.update({
+      where: { id: loan.bookId },
+      data: { availableCopies: { increment: 1 } }
+    });
+
+    // 6. 记录审计日志
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user.id,
+        action: 'RETURN_BOOK',
+        entity: 'Loan',
+        entityId: loan.id,
+        detail: `用户 ${req.user.email} 归还了图书 "${loan.book.title}"，逾期罚款: ${fineAmount}元`
+      }
+    });
+
+    // 7. 返回结果
+    res.json({
+      message: '还书成功',
+      loan: {
+        id: updatedLoan.id,
+        bookTitle: loan.book.title,
+        userName: loan.user.name,
+        checkoutDate: loan.checkoutDate,
+        dueDate: loan.dueDate,
+        returnDate: updatedLoan.returnDate,
+        fineAmount: updatedLoan.fineAmount,
+        isOverdue: fineAmount > 0
+      }
+    });
+
+  } catch (error) {
+    next(error);
+  }
+});
 
 module.exports = router;
