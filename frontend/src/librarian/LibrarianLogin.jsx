@@ -49,7 +49,6 @@ export default function LibrarianLogin({ onLogin, onSwitchToRegister }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     
-    // 表单验证
     const isEmployeeIdValid = validateEmployeeId(employeeId)
     const isPasswordValid = validatePassword(password)
     
@@ -65,7 +64,12 @@ export default function LibrarianLogin({ onLogin, onSwitchToRegister }) {
       const res = await fetch(`${LIBRARIAN_API_URL}/librarian/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ employeeId, password })
+        body: JSON.stringify({
+          email: employeeId,
+          employeeId,
+          password,
+          type: 'librarian',
+        })
       })
 
       const data = await res.json()

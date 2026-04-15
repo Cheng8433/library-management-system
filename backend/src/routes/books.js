@@ -14,10 +14,77 @@ const BOOK_SELECT = {
   description: true,
   language: true,
   shelfLocation: true,
+  floor: true,
+  libraryArea: true,
+  shelfNo: true,
+  shelfLevel: true,
   available: true,
   totalCopies: true,
   availableCopies: true,
   createdAt: true,
+};
+
+const BOOK_DETAIL_INCLUDE = {
+  loans: {
+    orderBy: { checkoutDate: 'desc' },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          studentId: true,
+        },
+      },
+    },
+  },
+  ratings: {
+    orderBy: { createdAt: 'desc' },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          studentId: true,
+        },
+      },
+    },
+  },
+  holds: {
+    orderBy: { createdAt: 'desc' },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          studentId: true,
+        },
+      },
+    },
+  },
+  wishlists: {
+    orderBy: { createdAt: 'desc' },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          studentId: true,
+        },
+      },
+    },
+  },
+  _count: {
+    select: {
+      loans: true,
+      ratings: true,
+      holds: true,
+      wishlists: true,
+    },
+  },
 };
 
 function normalizeText(value) {
@@ -48,6 +115,7 @@ async function writeAuditLog(action, entityId, detail) {
   }
 }
 
+// 获取所有图书
 router.get('/', async (req, res) => {
   try {
     const books = await prisma.book.findMany({
@@ -64,6 +132,70 @@ router.get('/', async (req, res) => {
   }
 });
 
+// 图书搜索功能 - 按书名、作者、关键词查找
+router.get('/search', async (req, res) => {
+  try {
+    const { title, author, keyword } = req.query;
+    
+    // 构建搜索条件
+    const whereCondition = {};
+    
+    if (title || author || keyword) {
+      whereCondition.OR = [];
+      
+      if (title) {
+        whereCondition.OR.push({ title: { contains: title } });
+      }
+      
+      if (author) {
+        whereCondition.OR.push({ author: { contains: author } });
+      }
+      
+      if (keyword) {
+        whereCondition.OR.push(
+          { title: { contains: keyword } },
+          { author: { contains: keyword } }
+        );
+      }
+    }
+    
+    const books = await prisma.book.findMany({
+      where: whereCondition,
+      orderBy: { id: 'asc' },
+      select: {
+        id: true,
+        title: true,
+        author: true,
+        isbn: true,
+        genre: true,
+        description: true,
+        language: true,
+        shelfLocation: true,
+        floor: true,
+        libraryArea: true,
+        shelfNo: true,
+        shelfLevel: true,
+        available: true,
+        totalCopies: true,
+        availableCopies: true,
+      },
+    });
+    
+    res.json({ 
+      success: true, 
+      data: books,
+      count: books.length 
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to search books',
+      detail: error.message,
+    });
+  }
+});
+
+// 获取单本图书详情
 router.get('/:id', async (req, res) => {
   const bookId = Number.parseInt(req.params.id, 10);
 
@@ -74,14 +206,30 @@ router.get('/:id', async (req, res) => {
   try {
     const book = await prisma.book.findUnique({
       where: { id: bookId },
-      select: BOOK_SELECT,
+      include: BOOK_DETAIL_INCLUDE,
     });
 
     if (!book) {
       return res.status(404).json({ error: 'Book not found' });
     }
 
-    res.json(book);
+    const ratingCount = book.ratings.length;
+    const averageRating =
+      ratingCount === 0
+        ? null
+        : Number((book.ratings.reduce((sum, rating) => sum + rating.stars, 0) / ratingCount).toFixed(2));
+
+    res.json({
+      success: true,
+      data: {
+        ...book,
+        stats: {
+          averageRating,
+          activeLoans: book.loans.filter((loan) => !loan.returnDate).length,
+          returnedLoans: book.loans.filter((loan) => Boolean(loan.returnDate)).length,
+        },
+      },
+    });
   } catch (error) {
     res.status(500).json({
       error: 'Failed to fetch book detail',
@@ -98,6 +246,12 @@ router.post('/', requireLibrarianAuth, async (req, res) => {
   const description = normalizeText(req.body.description) || null;
   const language = normalizeText(req.body.language) || 'English';
   const shelfLocation = normalizeText(req.body.shelfLocation) || null;
+  const libraryArea = normalizeText(req.body.libraryArea) || null;
+  const shelfNo = normalizeText(req.body.shelfNo) || null;
+  const floorInput = parseOptionalInteger(req.body.floor);
+  const shelfLevelInput = parseOptionalInteger(req.body.shelfLevel);
+  const floor = floorInput ?? null;
+  const shelfLevel = shelfLevelInput ?? null;
   const totalCopiesInput = parseOptionalInteger(req.body.totalCopies);
   const availableCopiesInput = parseOptionalInteger(req.body.availableCopies);
   const totalCopies = totalCopiesInput ?? 1;
@@ -110,13 +264,18 @@ router.post('/', requireLibrarianAuth, async (req, res) => {
   }
 
   if (
+    Number.isNaN(floor) ||
+    Number.isNaN(shelfLevel) ||
     Number.isNaN(totalCopies) ||
     Number.isNaN(availableCopies) ||
+    (floor !== null && floor < 1) ||
+    (shelfLevel !== null && shelfLevel < 1) ||
     totalCopies < 1 ||
     availableCopies < 0
   ) {
     return res.status(400).json({
-      error: 'totalCopies must be at least 1 and availableCopies cannot be negative',
+      error:
+        'floor and shelfLevel must be positive integers when provided, totalCopies must be at least 1 and availableCopies cannot be negative',
     });
   }
 
@@ -136,6 +295,10 @@ router.post('/', requireLibrarianAuth, async (req, res) => {
         description,
         language,
         shelfLocation,
+        floor,
+        libraryArea,
+        shelfNo,
+        shelfLevel,
         totalCopies,
         availableCopies,
         available: availableCopies > 0,

@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
-const API_BASE = '/api';
+const API_BASE = 'http://localhost:3001/api';
 const AuthContext = createContext(null);
 
 export function useAuth() {
@@ -61,13 +61,14 @@ export function AuthProvider({ children }) {
   }, []);
 
   const apiRequest = useCallback(async (url, options = {}) => {
+    const currentToken = localStorage.getItem('token');
     const headers = {
       'Content-Type': 'application/json',
       ...options.headers,
     };
 
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
+    if (currentToken) {
+      headers.Authorization = `Bearer ${currentToken}`;
     }
 
     const response = await fetch(`${API_BASE}${url}`, {
@@ -82,7 +83,7 @@ export function AuthProvider({ children }) {
     }
 
     return data;
-  }, [token]);
+  }, []);
 
   const value = {
     user,
