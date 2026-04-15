@@ -44,6 +44,24 @@ export default function AdminAnnouncements() {
     }
   };
 
+    // 👇 添加这两个函数
+    const handleSearch = (e) => {
+        e.preventDefault();
+        fetchAnnouncements(1);
+    };
+
+    const handlePageChange = (newPage) => {
+        fetchAnnouncements(newPage);
+    };
+
+    // ✅ 添加这个函数
+    const showMessage = (type, text) => {
+        setMessage({ type, text });
+        setTimeout(() => {
+            setMessage({ type: '', text: '' });
+        }, 3000);
+    };
+
   useEffect(() => {
     fetchAnnouncements(1);
   }, []);

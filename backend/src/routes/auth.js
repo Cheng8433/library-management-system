@@ -1,144 +1,199 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
 
 const prisma = require('../lib/prisma');
 const {
-  DEFAULT_EXPIRES_IN_SECONDS,
-  signToken,
+    DEFAULT_EXPIRES_IN_SECONDS,
+    signToken,
 } = require('../lib/token');
 const { toPublicUser } = require('../lib/user');
 
 const router = express.Router();
-const JWT_SECRET = 'library-management-secret-key-2024';
 
-// 读者/管理员登录接口
+/**
+ * 统一登录接口 - 支持读者、图书管理员、系统管理员
+ * 请求体: { email, password }
+ * 所有用户使用邮箱 + 密码登录
+ */
 router.post('/login', async (req, res) => {
-  const { account, password, employeeId, email, studentId } = req.body;
+    const { email, password } = req.body;
 
-  const loginPassword = password;
-  let user = null;
-  let userType = null;
-
-  // 尝试用 employeeId 登录（管理员）
-  if (employeeId) {
-    try {
-      const librarian = await prisma.librarian.findUnique({
-        where: { employeeId: employeeId }
-      });
-
-      if (librarian) {
-        const isValid = await bcrypt.compare(loginPassword, librarian.password);
-        if (isValid) {
-          const token = signToken({
-            sub: librarian.id,
-            role: 'LIBRARIAN',
-            employeeId: librarian.employeeId,
-            name: librarian.name,
-          });
-
-          return res.json({
-            message: '登录成功',
-            token,
-            tokenType: 'Bearer',
-            expiresIn: DEFAULT_EXPIRES_IN_SECONDS,
-            user: {
-              id: librarian.id,
-              name: librarian.name,
-              role: 'LIBRARIAN',
-              employeeId: librarian.employeeId,
-            },
-          });
-        }
-      }
-    } catch (error) {
-      console.error(error);
-      return res.status(500).json({ error: '登录失败' });
+    if (!email || !password) {
+        return res.status(400).json({ error: '请提供邮箱和密码' });
     }
-  }
 
-  // 尝试用 account/email/studentId 登录（读者）
-  const loginAccount = account || email || studentId;
-  if (loginAccount) {
-    const normalizeText = (value) => typeof value === 'string' ? value.trim() : '';
-    const normalizeEmail = (value) => normalizeText(value).toLowerCase();
-    
-    const loginEmail = loginAccount.includes('@') ? normalizeEmail(loginAccount) : '';
-    const loginStudentId = loginEmail ? '' : normalizeText(loginAccount);
+    // 查询用户（包括所有角色）
+    const user = await prisma.user.findUnique({
+        where: { email: email.toLowerCase().trim() }
+    });
+
+    if (!user) {
+        return res.status(401).json({ error: '邮箱或密码错误' });
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+    if (!isPasswordValid) {
+        return res.status(401).json({ error: '邮箱或密码错误' });
+    }
+
+    // 生成 JWT
+    const token = signToken({
+        sub: user.id,
+        role: user.role,
+        email: user.email,
+        studentId: user.studentId,
+    });
+
+    return res.json({
+        message: '登录成功',
+        token,
+        tokenType: 'Bearer',
+        expiresIn: DEFAULT_EXPIRES_IN_SECONDS,
+        user: toPublicUser(user),
+    });
+});
+
+/**
+ * 读者注册接口（仅开放给读者）
+ * 请求体: { name, email, studentId, password }
+ */
+router.post('/register/reader', async (req, res) => {
+    const { name, email, studentId, password } = req.body;
+
+    if (!name || !email || !password) {
+        return res.status(400).json({ error: '请填写完整信息' });
+    }
+    if (!email.includes('@')) {
+        return res.status(400).json({ error: '请输入有效的邮箱地址' });
+    }
+    if (password.length < 6) {
+        return res.status(400).json({ error: '密码长度不能少于6位' });
+    }
 
     try {
-      user = await prisma.user.findFirst({
-        where: loginEmail ? { email: loginEmail } : { studentId: loginStudentId },
-      });
+        // 检查邮箱或学号是否已被占用
+        const existing = await prisma.user.findFirst({
+            where: {
+                OR: [
+                    { email: email.toLowerCase() },
+                    studentId ? { studentId } : {}
+                ].filter(Boolean)
+            }
+        });
 
-      if (user) {
-        const isPasswordValid = await bcrypt.compare(loginPassword, user.passwordHash);
-        if (isPasswordValid) {
-          const token = signToken({
+        if (existing) {
+            if (existing.email === email.toLowerCase()) {
+                return res.status(400).json({ error: '该邮箱已被注册' });
+            }
+            if (studentId && existing.studentId === studentId) {
+                return res.status(400).json({ error: '该学号已被注册' });
+            }
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const user = await prisma.user.create({
+            data: {
+                name,
+                email: email.toLowerCase(),
+                studentId: studentId || null,
+                passwordHash: hashedPassword,
+                role: 'STUDENT'   // 注册用户默认为读者
+            }
+        });
+
+        // 注册成功后直接登录，返回 token
+        const token = signToken({
             sub: user.id,
             role: user.role,
             email: user.email,
             studentId: user.studentId,
-          });
+        });
 
-          return res.json({
-            message: '登录成功',
+        res.status(201).json({
+            message: '注册成功',
             token,
             tokenType: 'Bearer',
             expiresIn: DEFAULT_EXPIRES_IN_SECONDS,
             user: toPublicUser(user),
-          });
-        }
-      }
+        });
     } catch (error) {
-      console.error(error);
-      return res.status(500).json({ error: '登录失败' });
+        console.error(error);
+        res.status(500).json({ error: '注册失败' });
     }
-  }
-
-  return res.status(401).json({ error: '账号或密码错误' });
 });
 
-// 管理员注册接口
-router.post('/register', async (req, res) => {
-  const { employeeId, name, password } = req.body;
+/**
+ * 重置密码（读者）
+ * 通过邮箱或学号验证身份，设置新密码
+ * 请求体: { email, studentId, newPassword }  （至少提供 email 或 studentId 之一）
+ */
+router.post('/reset-password', async (req, res) => {
+    const { email, studentId, newPassword } = req.body;
 
-  if (!employeeId || !name || !password) {
-    return res.status(400).json({ error: '请填写完整信息' });
-  }
-  if (password.length < 6) {
-    return res.status(400).json({ error: '密码长度不能少于6位' });
-  }
-
-  try {
-    const existing = await prisma.librarian.findUnique({
-      where: { employeeId: employeeId }
-    });
-    if (existing) {
-      return res.status(400).json({ error: '工号已存在' });
+    if (!email && !studentId) {
+        return res.status(400).json({ error: '请提供邮箱或学号' });
+    }
+    if (!newPassword || newPassword.length < 6) {
+        return res.status(400).json({ error: '新密码长度不能少于6位' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const librarian = await prisma.librarian.create({
-      data: {
-        employeeId: employeeId,
-        name: name,
-        password: hashedPassword
-      }
-    });
+    try {
+        const user = await prisma.user.findFirst({
+            where: email ? { email: email.toLowerCase() } : { studentId }
+        });
 
-    res.status(201).json({
-      message: '注册成功',
-      librarian: {
-        id: librarian.id,
-        employeeId: librarian.employeeId,
-        name: librarian.name
-      }
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: '注册失败' });
-  }
+        if (!user) {
+            return res.status(404).json({ error: '用户不存在' });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { passwordHash: hashedPassword }
+        });
+
+        res.json({ message: '密码重置成功，请使用新密码登录' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: '密码重置失败' });
+    }
+});
+
+/**
+ * 管理员重置密码（仅限管理员账号，实际使用时应在路由层增加鉴权）
+ * 通过 email 重置密码
+ * 请求体: { email, newPassword }
+ */
+router.post('/reset-password/admin', async (req, res) => {
+    const { email, newPassword } = req.body;
+
+    if (!email || !newPassword) {
+        return res.status(400).json({ error: '请提供邮箱和新密码' });
+    }
+    if (newPassword.length < 6) {
+        return res.status(400).json({ error: '新密码长度不能少于6位' });
+    }
+
+    try {
+        const user = await prisma.user.findUnique({
+            where: { email: email.toLowerCase() }
+        });
+
+        if (!user || (user.role !== 'LIBRARIAN' && user.role !== 'ADMIN')) {
+            return res.status(404).json({ error: '管理员账号不存在' });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { passwordHash: hashedPassword }
+        });
+
+        res.json({ message: '密码重置成功，请使用新密码登录' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: '密码重置失败' });
+    }
 });
 
 module.exports = router;

@@ -1,78 +1,47 @@
 const prisma = require('../lib/prisma');
 const { verifyToken } = require('../lib/token');
-const { toPublicUser } = require('../lib/user');
 
 function extractBearerToken(authorizationHeader) {
-  if (!authorizationHeader) {
-    return null;
-  }
-
-  const [scheme, token] = authorizationHeader.split(' ');
-
-  if (!scheme || scheme.toLowerCase() !== 'bearer' || !token) {
-    return null;
-  }
-
-  return token.trim();
+    if (!authorizationHeader) return null;
+    const [scheme, token] = authorizationHeader.split(' ');
+    if (scheme?.toLowerCase() !== 'bearer' || !token) return null;
+    return token.trim();
 }
 
 async function requireAuth(req, res, next) {
-  const token = extractBearerToken(req.headers.authorization);
-
-  if (!token) {
-    return res.status(401).json({
-      message: 'Missing or invalid Authorization header.',
-    });
-  }
-
-  try {
-    const payload = verifyToken(token);
-    const userId = Number(payload.sub);
-
-    if (!userId) {
-      return res.status(401).json({ message: 'Token payload is invalid.' });
+    const token = extractBearerToken(req.headers.authorization);
+    if (!token) {
+        return res.status(401).json({ message: 'Missing or invalid Authorization header.' });
     }
 
-    let user = null;
-    let userType = null;
+    try {
+        const payload = verifyToken(token);
+        const userId = Number(payload.sub);
+        if (!userId) {
+            return res.status(401).json({ message: 'Token payload is invalid.' });
+        }
 
-    if (payload.role === 'LIBRARIAN') {
-      user = await prisma.librarian.findUnique({
-        where: { id: userId },
-      });
-      if (user) {
-        userType = 'librarian';
-      }
+        // 统一从 User 表查询用户
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+        });
+        if (!user) {
+            return res.status(401).json({ message: 'User no longer exists.' });
+        }
+
+        req.auth = payload;
+        req.user = {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,          // 从数据库获取角色
+            ...payload,               // 保留 token 中的其他字段
+        };
+        next();
+    } catch (error) {
+        console.error('Auth error:', error.message);
+        return res.status(401).json({ message: 'Invalid or expired token.' });
     }
-
-    if (!user) {
-      user = await prisma.user.findUnique({
-        where: { id: userId },
-      });
-      if (user) {
-        userType = 'user';
-      }
-    }
-
-    if (!user) {
-      return res.status(401).json({ message: 'User no longer exists.' });
-    }
-
-    req.auth = payload;
-    req.user = {
-      ...payload,
-      id: user.id,
-      name: user.name,
-      role: payload.role || (userType === 'librarian' ? 'LIBRARIAN' : user.role),
-    };
-    next();
-  } catch (error) {
-    return res.status(401).json({
-      message: 'Invalid or expired token.',
-    });
-  }
 }
 
-module.exports = {
-  requireAuth,
-};
+module.exports = { requireAuth };

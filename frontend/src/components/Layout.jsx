@@ -1,9 +1,9 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { BookOpen, Megaphone, Settings, LogOut, Menu, X } from 'lucide-react';
+import { BookOpen, Megaphone, Settings, LogOut, Menu, X, Book } from 'lucide-react';
 import { useState } from 'react';
 
-export default function Layout() {
+export default function Layout({ children }) {
   const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -14,9 +14,13 @@ export default function Layout() {
     navigate('/login');
   };
 
+  const isLibrarian = user?.role === 'LIBRARIAN';
+  const isValidUser = user && typeof user === 'object' && 'id' in user;
+
   const navLinks = [
+    { to: '/books', label: '图书列表', icon: Book },
     { to: '/announcements', label: '公告列表', icon: Megaphone },
-    ...(isAdmin ? [{ to: '/admin/announcements', label: '公告管理', icon: Settings }] : []),
+    ...(isAdmin || isLibrarian ? [{ to: '/admin/announcements', label: '公告管理', icon: Settings }] : []),
   ];
 
   return (
@@ -45,10 +49,10 @@ export default function Layout() {
             </nav>
 
             <div className="hidden md:flex items-center gap-4">
-              {user ? (
+              {isValidUser && user.name && user.role ? (
                 <>
                   <span className="text-sm text-gray-600">
-                    {user.name} ({user.role})
+                    {String(user.name)} ({String(user.role)})
                   </span>
                   <button
                     onClick={handleLogout}
@@ -93,10 +97,10 @@ export default function Layout() {
                   {label}
                 </Link>
               ))}
-              {user ? (
+              {isValidUser && user.name && user.role ? (
                 <div className="flex items-center justify-between pt-2 border-t">
                   <span className="text-sm text-gray-600">
-                    {user.name} ({user.role})
+                    {String(user.name)} ({String(user.role)})
                   </span>
                   <button
                     onClick={() => {
@@ -124,12 +128,7 @@ export default function Layout() {
       </header>
 
       <main className="container mx-auto px-4 py-6">
-        {location.pathname !== '/announcements' && location.pathname !== '/admin/announcements' && (
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold">图书馆管理系统</h1>
-            <p className="text-gray-600 mt-1">欢迎使用图书馆公告管理系统</p>
-          </div>
-        )}
+        {children}
       </main>
     </div>
   );

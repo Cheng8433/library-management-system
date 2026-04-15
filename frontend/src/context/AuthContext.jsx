@@ -17,13 +17,56 @@ function getToken() {
 
 function getUser() {
   const stored = localStorage.getItem('user');
-  return stored ? JSON.parse(stored) : null;
+  if (!stored) return null;
+  try {
+    const user = JSON.parse(stored);
+    if (!user || typeof user !== 'object' || !user.id) {
+      console.warn('Invalid user data in localStorage:', user);
+      return null;
+    }
+    return user;
+  } catch (e) {
+    console.warn('Failed to parse user from localStorage:', e);
+    return null;
+  }
+}
+
+function base64UrlDecode(str) {
+    // 将 Base64Url 转为标准 Base64
+    let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+    // 补齐 padding
+    while (base64.length % 4) base64 += '=';
+    return atob(base64);
+}
+
+function isTokenValid(token) {
+    if (!token) return false;
+    try {
+        const parts = token.split('.');
+        if (parts.length !== 3) return false;
+        const payload = JSON.parse(base64UrlDecode(parts[1]));
+        return payload.exp * 1000 > Date.now();
+    } catch {
+        return false;
+    }
 }
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(getUser);
   const [token, setToken] = useState(getToken);
   const [loading, setLoading] = useState(false);
+
+    // ✅ 在这里添加 token 有效性验证
+    useEffect(() => {
+        const storedToken = getToken();
+        if (storedToken && !isTokenValid(storedToken)) {
+            // token 无效，清除
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            setToken(null);
+            setUser(null);
+        }
+    }, []); // 空依赖数组，只在挂载时执行一次
 
   const login = useCallback(async (credentials) => {
     setLoading(true);
@@ -91,7 +134,7 @@ export function AuthProvider({ children }) {
     login,
     logout,
     apiRequest,
-    isAuthenticated: !!user,
+    isAuthenticated: !!token,
     isAdmin: user?.role === 'ADMIN',
   };
 

@@ -24,8 +24,8 @@ app.get('/health', (req, res) => {
 app.use('/api/readers', readersRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/loans', loansRouter);
+app.use('/api/books', booksRouter);
 app.use('/api/announcements', announcementsRouter);
-app.use('/books', booksRouter);
 app.use('/logs', logsRouter);
 
 app.use((req, res) => {
